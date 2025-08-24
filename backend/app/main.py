@@ -1,8 +1,7 @@
 import os
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -10,19 +9,8 @@ app = FastAPI()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не найден в переменных окружения")
+
 TG_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
-# --------- статические файлы и корень ---------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))                 # backend/app
-STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")        # backend/static
-
-# /static/* будет отдавать файлы из backend/static
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# корень сайта -> backend/static/index.html
-@app.get("/")
-async def root():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 @app.get("/health")
 async def health():
@@ -40,7 +28,7 @@ class DirectMessageIn(BaseModel):
 # ---------- ROUTES ----------
 @app.post("/api/inline_answer")
 async def inline_answer(body: InlineAnswerIn):
-    """Ответ в чат через answerWebAppQuery (inline‑кнопка)."""
+    """Ответ в чат через answerWebAppQuery (inline-кнопка)."""
     async with httpx.AsyncClient(timeout=15) as cli:
         r = await cli.post(
             f"{TG_API}/answerWebAppQuery",
@@ -60,7 +48,7 @@ async def inline_answer(body: InlineAnswerIn):
 
 @app.post("/api/send_message")
 async def send_message(body: DirectMessageIn):
-    """Сценарий «Открыть» (меню бота): отправляем сообщение напрямую."""
+    """Сценарий «Открыть магазин» (reply-кнопка / меню)."""
     async with httpx.AsyncClient(timeout=15) as cli:
         r = await cli.post(
             f"{TG_API}/sendMessage",
