@@ -1,19 +1,23 @@
-version: "3.9"
+# Удали строку version: ... (она устарела)
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: .                 # <— корень проекта
+      dockerfile: backend/Dockerfile
     container_name: rumus-backend
     restart: unless-stopped
     networks: [net]
 
   bot:
-    build: ./bot
+    build:
+      context: .                 # <— корень проекта
+      dockerfile: bot/Dockerfile
     container_name: rumus-bot
     restart: unless-stopped
     environment:
-      BOT_TOKEN: ${BOT_TOKEN}         # из .env в корне
-      WEBAPP_URL: https://${DOMAIN}    # Mini App откроется по вашему домену
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBAPP_URL: https://${DOMAIN}
     depends_on: [backend]
     networks: [net]
 
@@ -22,12 +26,12 @@ services:
     container_name: rumus-caddy
     restart: unless-stopped
     ports:
-      - "80:80"    # HTTP (нужен для выдачи/обновления сертификатов)
-      - "443:443"  # HTTPS
+      - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data      # здесь Caddy хранит сертификаты LE
-      - caddy_config:/config  # внутренние конфиги Caddy
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on: [backend]
     networks: [net]
 
