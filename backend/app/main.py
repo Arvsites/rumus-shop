@@ -12,7 +12,7 @@ if not BOT_TOKEN:
 
 TG_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# --- убираем 404 на корне: редирект на /health ---
+# корень не 404: редирект на /health
 @app.get("/")
 async def root():
     return RedirectResponse("/health", status_code=307)
@@ -21,7 +21,6 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-# ---------- models ----------
 class InlineAnswerIn(BaseModel):
     query_id: str
     data: dict
@@ -30,12 +29,8 @@ class DirectMessageIn(BaseModel):
     chat_id: int
     text: str
 
-# ---------- routes ----------
 @app.post("/api/inline_answer")
 async def inline_answer(body: InlineAnswerIn):
-    """
-    Открыто через inline‑кнопку: отвечаем в чат через answerWebAppQuery.
-    """
     async with httpx.AsyncClient(timeout=15) as cli:
         r = await cli.post(
             f"{TG_API}/answerWebAppQuery",
@@ -55,10 +50,6 @@ async def inline_answer(body: InlineAnswerIn):
 
 @app.post("/api/send_message")
 async def send_message(body: DirectMessageIn):
-    """
-    Открыто из профиля бота («Открыть»): отправляем сообщение напрямую.
-    Требуется, чтобы пользователь хотя бы раз нажал /start у бота.
-    """
     async with httpx.AsyncClient(timeout=15) as cli:
         r = await cli.post(
             f"{TG_API}/sendMessage",

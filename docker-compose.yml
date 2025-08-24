@@ -6,7 +6,6 @@ services:
     env_file:
       - ./.env
     environment:
-      # Пробрасываем дальше, если в .env заданы
       BOT_TOKEN: ${BOT_TOKEN}
       WEBAPP_URL: ${WEBAPP_URL}
     expose:
@@ -36,8 +35,7 @@ services:
     image: caddy:2
     ports:
       - "80:80"
-      # если будет домен и HTTPS — раскомментируй:
-      # - "443:443"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./backend/static:/srv/static:ro
