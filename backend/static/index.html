@@ -1,74 +1,73 @@
-<!-- backend/static/index.html -->
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Mini App подключена</title>
-  <style>
-    :root { --fg:#0b1220; --muted:#6b7280; --bg:#fff; --accent:#2563eb; }
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial;}
-    .wrap{max-width:680px;margin:0 auto;padding:24px;}
-    h1{font-weight:800;font-size:clamp(28px,5vw,40px);margin:0 0 16px;}
-    button{
-      appearance:none;border:0;border-radius:12px;padding:14px 18px;font-weight:700;
-      background:#eef2ff;cursor:pointer;transition:.15s;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05);
-    }
-    button:hover{transform:translateY(-1px)}
-    pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:16px}
-    .ok{color:#059669}.warn{color:#b45309}.err{color:#dc2626}.muted{color:var(--muted)}
-  </style>
+  <meta charset="UTF-8" />
+  <title>Mybot Test</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #log { white-space: pre-wrap; background: #f5f5f5; padding: 10px; }
+    button { padding: 10px 15px; font-size: 16px; }
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Mini App<br>подключена</h1>
-
-    <button id="sendBtn">Отправить данные боту</button>
-
-    <pre id="log"></pre>
-  </div>
+  <h1>Mini App подключена</h1>
+  <button id="send-btn">Отправить данные боту</button>
+  <div id="log"></div>
 
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
 
-    const $log = document.getElementById('log');
-    const log = (s) => { $log.textContent += s + "\n"; }
+    const logEl = document.getElementById("log");
+    const btn = document.getElementById("send-btn");
 
-    // Инфо о запуске
-    log(`[${new Date().toTimeString().slice(0,8)}] SDK готов. Платформа: ${tg.platform}.`);
-    const queryId = tg.initDataUnsafe?.query_id ?? "";
+    function log(line) {
+      logEl.textContent += (logEl.textContent ? "\n" : "") + line;
+    }
+
+    // Видим контекст запуска
+    const queryId = tg.initDataUnsafe?.query_id || "";
+    const userId  = tg.initDataUnsafe?.user?.id || null;
+    log(`[${new Date().toLocaleTimeString()}] SDK готов. Платформа: ${tg.platform}.`);
     log(`query_id: ${queryId || "—"}`);
-    if (!queryId) log("❗ query_id не найден (значит открыт по inline‑кнопке не был).");
 
-    document.getElementById('sendBtn').addEventListener('click', async () => {
+    btn.addEventListener("click", async () => {
       const payload = { event: "hello_from_miniapp", ts: Date.now() };
-      const qid = tg.initDataUnsafe?.query_id;
 
       try {
-        if (qid) {
-          // Открыто по inline‑кнопке: просим бэкенд дернуть answerWebAppQuery
-          const r = await fetch('/api/inline_answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query_id: qid, data: payload })
+        if (queryId) {
+          // Открыто через inline-кнопку
+          const r = await fetch("/api/inline_answer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query_id: queryId, data: payload })
           });
           const j = await r.json();
-          if (r.ok && j.ok) {
-            log("✅ Отправлено через answerWebAppQuery.");
-          } else {
-            log("❌ Ответ API: " + JSON.stringify(j));
-          }
-        } else {
-          // Открыто из клавиатуры/скрепки: обычный sendData → бот поймает F.web_app_data
+          if (!r.ok) throw new Error(JSON.stringify(j));
+          log("✅ Ответили в чат через inline_answer.");
+        } else if (tg.sendData) {
+          // Открыто через reply-клавиатуру
           tg.sendData(JSON.stringify(payload));
-          log("✅ Отправлено через sendData (клавиатура/скрепка).");
+          log("✅ Отправлено боту через sendData (reply-кнопка).");
+        } else if (userId) {
+          // Открыто по кнопке “Открыть” (меню бота)
+          const r = await fetch("/api/send_message", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: userId,
+              text: "📦 " + JSON.stringify(payload)
+            })
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(JSON.stringify(j));
+          log("✅ Сообщение отправлено в чат через sendMessage (меню 'Открыть').");
+        } else {
+          log("❗ Не удалось определить способ доставки (нет query_id и userId).");
         }
       } catch (e) {
-        log("❌ Ошибка: " + e);
+        log("❌ Ошибка: " + e.message);
       }
     });
   </script>
