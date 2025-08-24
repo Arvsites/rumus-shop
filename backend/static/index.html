@@ -1,63 +1,57 @@
 <!doctype html>
-<html lang="ru">
+<html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mini App подключена</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 16px; }
-    #log { font-family: monospace; white-space: pre-wrap; }
-    button { padding: 10px 14px; margin: 10px 0; }
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;padding:16px}
+    button{padding:12px 16px;font-size:16px;border-radius:8px;border:1px solid #ccc;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px}
   </style>
 </head>
 <body>
-  <h1>Mini App подключена</h1>
-  <p><button id="send">Отправить данные боту</button></p>
-  <div id="log"></div>
+  <h1>Mini App<br/>подключена</h1>
+  <button id="sendBtn">Отправить данные боту</button>
+  <pre id="log"></pre>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
 
-    const queryId = tg?.initDataUnsafe?.query_id || null;
-    const logEl = document.getElementById('log');
+const log = (m) => { document.getElementById('log').textContent += m + "\n"; };
 
-    function log(line) {
-      const t = new Date().toLocaleTimeString();
-      logEl.textContent += `[${t}] ${line}\n`;
+const init = tg.initDataUnsafe || {};
+const queryId = init.query_id || null;   // есть только при запуске из Attachment Menu
+log(`[${new Date().toLocaleTimeString()}] SDK готов. Платформа: ${tg.platform}.`);
+log(`query_id: ${queryId ?? '—'}`);
+if(!queryId){ log("❗ query_id не найден (значит открыт по inline‑кнопке)."); }
+
+document.getElementById('sendBtn').onclick = async () => {
+  const payload = JSON.stringify({ event: 'hello_from_miniapp', ts: Date.now() });
+
+  if (queryId) {
+    // Attachment Menu: шлём на бэкенд, который вызовет answerWebAppQuery
+    try {
+      const r = await fetch('/api/webapp/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query_id: queryId, text: payload })
+      });
+      const j = await r.json();
+      log(j.ok ? "✅ Сообщение отправлено через answerWebAppQuery." :
+                 "❌ Ошибка: " + JSON.stringify(j));
+    } catch (e) {
+      log("❌ Ошибка сети: " + e);
     }
-
-    document.getElementById('send').onclick = async () => {
-      const payload = {
-        event: "hello_from_miniapp_inline",
-        ts: Date.now(),
-        platform: tg.platform,
-      };
-
-      if (!queryId) {
-        log("❗ query_id не найден (скорее всего не inline-кнопка).");
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/webapp/answer', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ query_id: queryId, data: payload })
-        });
-        const j = await res.json();
-        if (j.ok) {
-          log("✅ Отправили ответ в чат через answerWebAppQuery");
-        } else {
-          log("❌ Ошибка answerWebAppQuery: " + JSON.stringify(j));
-        }
-      } catch (e) {
-        log("❌ Сеть/бекенд: " + e.message);
-      }
-    };
-
-    log(`SDK готов. Платформа: ${tg.platform}. query_id: ${queryId || '—'}`);
-  </script>
+  } else {
+    // Inline‑кнопка: просто отправляем данные в бот
+    tg.sendData(payload);
+    log("✅ Отправлено боту через sendData (inline‑кнопка).");
+  }
+};
+</script>
 </body>
 </html>
