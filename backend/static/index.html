@@ -1,57 +1,76 @@
+<!-- backend/static/index.html -->
 <!doctype html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mini App</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mini App подключена</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Arial,sans-serif;padding:16px}
-    button{padding:12px 16px;font-size:16px;border-radius:8px;border:1px solid #ccc;cursor:pointer}
-    pre{white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px}
+    :root { --fg:#0b1220; --muted:#6b7280; --bg:#fff; --accent:#2563eb; }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial;}
+    .wrap{max-width:680px;margin:0 auto;padding:24px;}
+    h1{font-weight:800;font-size:clamp(28px,5vw,40px);margin:0 0 16px;}
+    button{
+      appearance:none;border:0;border-radius:12px;padding:14px 18px;font-weight:700;
+      background:#eef2ff;cursor:pointer;transition:.15s;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05);
+    }
+    button:hover{transform:translateY(-1px)}
+    pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:16px}
+    .ok{color:#059669}.warn{color:#b45309}.err{color:#dc2626}.muted{color:var(--muted)}
   </style>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <h1>Mini App<br/>подключена</h1>
-  <button id="sendBtn">Отправить данные боту</button>
-  <pre id="log"></pre>
+  <div class="wrap">
+    <h1>Mini App<br>подключена</h1>
 
-<script>
-const tg = window.Telegram.WebApp;
-tg.ready();
-tg.expand();
+    <button id="sendBtn">Отправить данные боту</button>
 
-const log = (m) => { document.getElementById('log').textContent += m + "\n"; };
+    <pre id="log"></pre>
+  </div>
 
-const init = tg.initDataUnsafe || {};
-const queryId = init.query_id || null;   // есть только при запуске из Attachment Menu
-log(`[${new Date().toLocaleTimeString()}] SDK готов. Платформа: ${tg.platform}.`);
-log(`query_id: ${queryId ?? '—'}`);
-if(!queryId){ log("❗ query_id не найден (значит открыт по inline‑кнопке)."); }
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
 
-document.getElementById('sendBtn').onclick = async () => {
-  const payload = JSON.stringify({ event: 'hello_from_miniapp', ts: Date.now() });
+    const $log = document.getElementById('log');
+    const log = (s) => { $log.textContent += s + "\n"; }
 
-  if (queryId) {
-    // Attachment Menu: шлём на бэкенд, который вызовет answerWebAppQuery
-    try {
-      const r = await fetch('/api/webapp/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query_id: queryId, text: payload })
-      });
-      const j = await r.json();
-      log(j.ok ? "✅ Сообщение отправлено через answerWebAppQuery." :
-                 "❌ Ошибка: " + JSON.stringify(j));
-    } catch (e) {
-      log("❌ Ошибка сети: " + e);
-    }
-  } else {
-    // Inline‑кнопка: просто отправляем данные в бот
-    tg.sendData(payload);
-    log("✅ Отправлено боту через sendData (inline‑кнопка).");
-  }
-};
-</script>
+    // Инфо о запуске
+    log(`[${new Date().toTimeString().slice(0,8)}] SDK готов. Платформа: ${tg.platform}.`);
+    const queryId = tg.initDataUnsafe?.query_id ?? "";
+    log(`query_id: ${queryId || "—"}`);
+    if (!queryId) log("❗ query_id не найден (значит открыт по inline‑кнопке не был).");
+
+    document.getElementById('sendBtn').addEventListener('click', async () => {
+      const payload = { event: "hello_from_miniapp", ts: Date.now() };
+      const qid = tg.initDataUnsafe?.query_id;
+
+      try {
+        if (qid) {
+          // Открыто по inline‑кнопке: просим бэкенд дернуть answerWebAppQuery
+          const r = await fetch('/api/inline_answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query_id: qid, data: payload })
+          });
+          const j = await r.json();
+          if (r.ok && j.ok) {
+            log("✅ Отправлено через answerWebAppQuery.");
+          } else {
+            log("❌ Ответ API: " + JSON.stringify(j));
+          }
+        } else {
+          // Открыто из клавиатуры/скрепки: обычный sendData → бот поймает F.web_app_data
+          tg.sendData(JSON.stringify(payload));
+          log("✅ Отправлено через sendData (клавиатура/скрепка).");
+        }
+      } catch (e) {
+        log("❌ Ошибка: " + e);
+      }
+    });
+  </script>
 </body>
 </html>
