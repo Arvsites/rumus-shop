@@ -2,12 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Mybot Test</title>
+  <title>Rumus Mini App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #log { white-space: pre-wrap; background: #f5f5f5; padding: 10px; }
-    button { padding: 10px 15px; font-size: 16px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; padding:20px; }
+    h1 { margin:0 0 12px; }
+    button { padding:12px 16px; font-size:16px; border-radius:10px; border:1px solid #ddd; cursor:pointer; }
+    #log { white-space: pre-wrap; background:#f6f8fa; border:1px solid #e5e7eb; padding:12px; border-radius:10px; margin-top:16px; }
   </style>
 </head>
 <body>
@@ -21,53 +23,48 @@
 
     const logEl = document.getElementById("log");
     const btn = document.getElementById("send-btn");
+    const log = (s) => logEl.textContent += (logEl.textContent ? "\n" : "") + s;
 
-    function log(line) {
-      logEl.textContent += (logEl.textContent ? "\n" : "") + line;
-    }
-
-    // Видим контекст запуска
     const queryId = tg.initDataUnsafe?.query_id || "";
     const userId  = tg.initDataUnsafe?.user?.id || null;
+
     log(`[${new Date().toLocaleTimeString()}] SDK готов. Платформа: ${tg.platform}.`);
     log(`query_id: ${queryId || "—"}`);
+    if (!userId) log("ℹ️ userId не получен (OK для некоторых клиентов).");
 
     btn.addEventListener("click", async () => {
       const payload = { event: "hello_from_miniapp", ts: Date.now() };
 
       try {
         if (queryId) {
-          // Открыто через inline-кнопку
+          // Открыто через inline‑кнопку
           const r = await fetch("/api/inline_answer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query_id: queryId, data: payload })
           });
           const j = await r.json();
-          if (!r.ok) throw new Error(JSON.stringify(j));
-          log("✅ Ответили в чат через inline_answer.");
+          if (!r.ok) throw new Error(j?.description || JSON.stringify(j));
+          log("✅ Ответили в чат через answerWebAppQuery.");
         } else if (tg.sendData) {
-          // Открыто через reply-клавиатуру
+          // Открыто через reply‑клавиатуру
           tg.sendData(JSON.stringify(payload));
-          log("✅ Отправлено боту через sendData (reply-кнопка).");
+          log("✅ Отправлено боту через sendData (reply‑кнопка).");
         } else if (userId) {
-          // Открыто по кнопке “Открыть” (меню бота)
+          // Открыто из профиля бота («Открыть»)
           const r = await fetch("/api/send_message", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: userId,
-              text: "📦 " + JSON.stringify(payload)
-            })
+            body: JSON.stringify({ chat_id: userId, text: "📦 " + JSON.stringify(payload) })
           });
           const j = await r.json();
-          if (!r.ok) throw new Error(JSON.stringify(j));
-          log("✅ Сообщение отправлено в чат через sendMessage (меню 'Открыть').");
+          if (!r.ok) throw new Error(j?.description || JSON.stringify(j));
+          log("✅ Сообщение отправлено в чат через sendMessage (меню «Открыть»).");
         } else {
           log("❗ Не удалось определить способ доставки (нет query_id и userId).");
         }
       } catch (e) {
-        log("❌ Ошибка: " + e.message);
+        log("❌ Ошибка: " + (e?.message || e));
       }
     });
   </script>

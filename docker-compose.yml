@@ -1,46 +1,47 @@
-# Удали строку version: ... (она устарела)
-
 services:
   backend:
     build:
-      context: .                 # <— корень проекта
-      dockerfile: backend/Dockerfile
-    container_name: rumus-backend
-    restart: unless-stopped
-    networks: [net]
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
     environment:
-      - BOT_TOKEN=${BOT_TOKEN}
+      # Пробрасываем дальше, если в .env заданы
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBAPP_URL: ${WEBAPP_URL}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   bot:
     build:
-      context: .                 # <— корень проекта
-      dockerfile: bot/Dockerfile
-    container_name: rumus-bot
-    restart: unless-stopped
+      context: ./bot
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
-      WEBAPP_URL: https://${DOMAIN}
-    depends_on: [backend]
-    networks: [net]
+      WEBAPP_URL: ${WEBAPP_URL}
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
 
   caddy:
     image: caddy:2
-    container_name: rumus-caddy
-    restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
+      # если будет домен и HTTPS — раскомментируй:
+      # - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on: [backend]
-    networks: [net]
-
-networks:
-  net:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
+      - ./backend/static:/srv/static:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

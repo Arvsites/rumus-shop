@@ -1,8 +1,23 @@
-# замените на свой домен
+# основной сайт — твой Mini App
 92-51-22-168.sslip.io {
     encode gzip
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # Проксируем API и health в backend
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy backend:8000
     }
-    reverse_proxy backend:8000
+
+    # Всё остальное — статика (index.html и файлы)
+    handle {
+        root * /srv/static
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Логи запросов
+    log {
+        output stdout
+        format console
+    }
 }
