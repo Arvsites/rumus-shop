@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <h2>Mini App подключена</h2>
+  <button id="send">Отправить данные боту</button>
+  <pre id="log"></pre>
+  <script>
+    const log = t => (document.getElementById('log').textContent += t + "\n");
+    const tg = window.Telegram?.WebApp;
+    tg?.ready(); tg?.expand();
+
+    function send() {
+      const payload = { event:"hello_from_miniapp", ts: Date.now(), platform: tg?.platform || "unknown" };
+      if (tg?.sendData) {
+        tg.sendData(JSON.stringify(payload));
+        log("➡️ Отправлено боту: " + JSON.stringify(payload));
+      } else {
+        log("❌ Открой через кнопку бота (не внешний браузер).");
+      }
+    }
+    document.getElementById("send").addEventListener("click", send);
+    tg?.MainButton.setText("Отправить данные"); tg?.MainButton.onClick(send); tg?.MainButton.show();
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: rumus-backend
+    restart: unless-stopped
+    networks: [net]
+
+  bot:
+    build: ./bot
+    container_name: rumus-bot
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}         # из .env в корне
+      WEBAPP_URL: https://${DOMAIN}    # Mini App откроется по вашему домену
+    depends_on: [backend]
+    networks: [net]
+
+  caddy:
+    image: caddy:2
+    container_name: rumus-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"    # HTTP (нужен для выдачи/обновления сертификатов)
+      - "443:443"  # HTTPS
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # здесь Caddy хранит сертификаты LE
+      - caddy_config:/config  # внутренние конфиги Caddy
+    depends_on: [backend]
+    networks: [net]
+
+networks:
+  net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
