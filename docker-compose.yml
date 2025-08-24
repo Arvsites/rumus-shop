@@ -8,6 +8,8 @@ services:
     container_name: rumus-backend
     restart: unless-stopped
     networks: [net]
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
 
   bot:
     build:
