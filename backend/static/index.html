@@ -1,31 +1,44 @@
+<!-- backend/static/index.html -->
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mini App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mini App подключена</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+    #log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    button { padding: 10px 14px; }
+  </style>
 </head>
 <body>
-  <h2>Mini App подключена</h2>
-  <button id="send">Отправить данные боту</button>
-  <pre id="log"></pre>
-  <script>
-    const log = t => (document.getElementById('log').textContent += t + "\n");
-    const tg = window.Telegram?.WebApp;
-    tg?.ready(); tg?.expand();
+  <h1>Mini App подключена</h1>
+  <p><button id="send">Отправить данные боту</button></p>
+  <div id="log"></div>
 
-    function send() {
-      const payload = { event:"hello_from_miniapp", ts: Date.now(), platform: tg?.platform || "unknown" };
-      if (tg?.sendData) {
-        tg.sendData(JSON.stringify(payload));
-        log("➡️ Отправлено боту: " + JSON.stringify(payload));
-      } else {
-        log("❌ Открой через кнопку бота (не внешний браузер).");
-      }
+  <script>
+    const tg = window.Telegram.WebApp;
+    const logEl = document.getElementById('log');
+
+    function log(line) {
+      const t = new Date().toLocaleTimeString();
+      logEl.textContent += `[${t}] ${line}\n`;
     }
-    document.getElementById("send").addEventListener("click", send);
-    tg?.MainButton.setText("Отправить данные"); tg?.MainButton.onClick(send); tg?.MainButton.show();
+
+    document.getElementById('send').onclick = () => {
+      const payload = {
+        event: "hello_from_miniapp",
+        ts: Date.now(),
+        platform: tg.platform
+      };
+      tg.sendData(JSON.stringify(payload));
+      log(`Отправлено боту: ${JSON.stringify(payload)}`);
+    };
+
+    tg.ready();
+    tg.enableClosingConfirmation(); // опционально
+    log(`SDK готов. Платформа: ${tg.platform}`);
   </script>
 </body>
 </html>
