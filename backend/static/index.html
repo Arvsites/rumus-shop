@@ -1,4 +1,3 @@
-<!-- backend/static/index.html -->
 <!doctype html>
 <html lang="ru">
 <head>
@@ -7,9 +6,9 @@
   <title>Mini App подключена</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
-    #log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
-    button { padding: 10px 14px; }
+    body { font-family: system-ui, sans-serif; padding: 16px; }
+    #log { font-family: monospace; white-space: pre-wrap; }
+    button { padding: 10px 14px; margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -19,6 +18,9 @@
 
   <script>
     const tg = window.Telegram.WebApp;
+    tg.ready();
+
+    const queryId = tg?.initDataUnsafe?.query_id || null;
     const logEl = document.getElementById('log');
 
     function log(line) {
@@ -26,19 +28,36 @@
       logEl.textContent += `[${t}] ${line}\n`;
     }
 
-    document.getElementById('send').onclick = () => {
+    document.getElementById('send').onclick = async () => {
       const payload = {
-        event: "hello_from_miniapp",
+        event: "hello_from_miniapp_inline",
         ts: Date.now(),
-        platform: tg.platform
+        platform: tg.platform,
       };
-      tg.sendData(JSON.stringify(payload));
-      log(`Отправлено боту: ${JSON.stringify(payload)}`);
+
+      if (!queryId) {
+        log("❗ query_id не найден (скорее всего не inline-кнопка).");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/webapp/answer', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ query_id: queryId, data: payload })
+        });
+        const j = await res.json();
+        if (j.ok) {
+          log("✅ Отправили ответ в чат через answerWebAppQuery");
+        } else {
+          log("❌ Ошибка answerWebAppQuery: " + JSON.stringify(j));
+        }
+      } catch (e) {
+        log("❌ Сеть/бекенд: " + e.message);
+      }
     };
 
-    tg.ready();
-    tg.enableClosingConfirmation(); // опционально
-    log(`SDK готов. Платформа: ${tg.platform}`);
+    log(`SDK готов. Платформа: ${tg.platform}. query_id: ${queryId || '—'}`);
   </script>
 </body>
 </html>
