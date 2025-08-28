@@ -40,7 +40,7 @@ async def cmd_start(m: Message):
     except Exception:
         pass
     msg = await m.answer(
-        "Добро пожаловать! Откройте мини-приложение:",
+        "Добро пожаловать в магазин Rumus! Откройте мини-приложение:",
         reply_markup=inline_open_kb(ref_code=ref)
     )
     LAST_MSG[m.from_user.id] = msg.message_id
