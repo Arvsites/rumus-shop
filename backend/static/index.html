@@ -76,6 +76,8 @@
 <script>
 const tg = window.Telegram.WebApp;
 tg.ready();
+tg.setBackgroundColor("#ffffff");
+tg.setHeaderColor("#ffffff");
 const state = { stack: [], me: null, products: [] };
 const titleEl = document.getElementById("title");
 const screens = ["register","list","product","cart","checkout","orders"];
