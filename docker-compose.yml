@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   backend:
     build:
@@ -8,6 +10,10 @@ services:
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       WEBAPP_URL: ${WEBAPP_URL}
+      DATABASE_URL: sqlite:///data/app.db
+    volumes:
+      - ./backend/static:/app/app/static:ro
+      - ./data:/app/data
     expose:
       - "8000"
     healthcheck:

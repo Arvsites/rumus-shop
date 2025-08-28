@@ -1,52 +1,55 @@
-import asyncio
-import os
+import os, asyncio, json
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
-from aiogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton,
-    WebAppInfo, KeyboardButton, ReplyKeyboardMarkup
-)
-from dotenv import load_dotenv
-from loguru import logger
+from aiogram.types import Message, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBAPP_URL = os.getenv("WEBAPP_URL")
+WEBAPP_URL = os.getenv("WEBAPP_URL")  # e.g. https://92-51-22-168.sslip.io
+if not BOT_TOKEN or not WEBAPP_URL:
+    raise RuntimeError("Need BOT_TOKEN and WEBAPP_URL")
 
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN отсутствует в .env")
-if not WEBAPP_URL:
-    raise RuntimeError("WEBAPP_URL отсутствует в .env")
-
-bot = Bot(BOT_TOKEN)
+bot = Bot(BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
+LAST_MSG = {}  # tg_user_id -> message_id (для зачистки)
 
-@dp.message(CommandStart())
-async def handle_start(m: Message):
-    inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🛍 Открыть магазин (inline)", web_app=WebAppInfo(url=WEBAPP_URL))
-    ]])
-    reply_kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🛍 Открыть магазин", web_app=WebAppInfo(url=WEBAPP_URL))]],
+def main_menu_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Открыть магазин", web_app=WebAppInfo(url=WEBAPP_URL))]],
         resize_keyboard=True
     )
-    await m.answer("Нажми кнопку ниже, чтобы открыть Mini App.", reply_markup=inline_kb)
-    await m.answer("Или используй кнопку в клавиатуре 👇", reply_markup=reply_kb)
+
+@dp.message(CommandStart())
+async def cmd_start(m: Message):
+    # разрешаем /start только для регистрации/входа — ТЗ
+    # чистим старое активное сообщение (если было)
+    try:
+        mid = LAST_MSG.get(m.from_user.id)
+        if mid: await bot.delete_message(chat_id=m.chat.id, message_id=mid)
+    except: pass
+    msg = await m.answer("Добро пожаловать! Откройте мини-приложение👇", reply_markup=main_menu_kb())
+    LAST_MSG[m.from_user.id] = msg.message_id
 
 @dp.message(F.web_app_data)
-async def handle_webapp_data(m: Message):
-    await m.answer(f"📦 Получено из Mini App:\n{m.web_app_data.data}")
+async def on_webapp_data(m: Message):
+    # данные из Mini App через sendData
+    try:
+        data = json.loads(m.web_app_data.data)
+    except Exception:
+        data = {"raw": m.web_app_data.data}
+    await m.answer(f"📦 Получено из MiniApp: <code>{json.dumps(data)}</code>", reply_markup=ReplyKeyboardRemove())
 
-async def _run():
-    logger.info("Бот: старт polling")
-    await bot.delete_webhook(drop_pending_updates=False)
+@dp.message(F.text == "Назад")
+async def back_to_menu(m: Message):
+    # возвращаем в главное меню, скрываем старые кнопки
+    try:
+        mid = LAST_MSG.get(m.from_user.id)
+        if mid: await bot.delete_message(chat_id=m.chat.id, message_id=mid)
+    except: pass
+    msg = await m.answer("Главное меню", reply_markup=main_menu_kb())
+    LAST_MSG[m.from_user.id] = msg.message_id
+
+async def main():
     await dp.start_polling(bot)
 
-def main():
-    try:
-        asyncio.run(_run())
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен по Ctrl+C")
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

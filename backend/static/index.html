@@ -6,67 +6,229 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; padding:20px; }
-    h1 { margin:0 0 12px; }
-    button { padding:12px 16px; font-size:16px; border-radius:10px; border:1px solid #ddd; cursor:pointer; }
-    #log { white-space: pre-wrap; background:#f6f8fa; border:1px solid #e5e7eb; padding:12px; border-radius:10px; margin-top:16px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; }
+    header, footer { padding:12px 16px; border-bottom:1px solid #eee; }
+    main { padding:16px; }
+    .hidden{ display:none; }
+    .btn{ padding:10px 12px; border:1px solid #ddd; border-radius:10px; cursor:pointer; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .card{ border:1px solid #eee; border-radius:12px; padding:12px; width:100%; }
+    @media(min-width:480px){ .card{ width:calc(50% - 6px); } }
+    img{ max-width:100%; border-radius:8px; }
+    input, select, textarea{ width:100%; padding:10px; border:1px solid #ddd; border-radius:10px; }
+    .back{ margin-right:8px; }
+    .price{ font-weight:600; }
+    .muted{ color:#666; font-size:12px; }
   </style>
 </head>
 <body>
-  <h1>Mini App подключена</h1>
-  <button id="send-btn">Отправить данные боту</button>
-  <div id="log"></div>
+<header class="row">
+  <button class="btn back" id="backBtn">← Назад</button>
+  <div id="title">Магазин</div>
+</header>
+<main>
+  <section id="screen-register" class="hidden">
+    <h2>Регистрация</h2>
+    <div class="row">
+      <input id="full_name" placeholder="ФИО"/>
+      <input id="phone" placeholder="Телефон"/>
+      <input id="email" placeholder="E-mail"/>
+      <input id="ref" placeholder="Код дистрибьютора (если есть)"/>
+      <label><input type="checkbox" id="agree"/> Согласен с <a href="#" target="_blank">политикой обработки ПДн</a></label>
+      <button class="btn" id="regBtn">Сохранить и продолжить</button>
+    </div>
+  </section>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
+  <section id="screen-list" class="hidden">
+    <div id="list" class="row"></div>
+  </section>
 
-    const logEl = document.getElementById("log");
-    const btn = document.getElementById("send-btn");
-    const log = (s) => logEl.textContent += (logEl.textContent ? "\n" : "") + s;
+  <section id="screen-product" class="hidden">
+    <div id="pbox"></div>
+  </section>
 
-    const queryId = tg.initDataUnsafe?.query_id || "";
-    const userId  = tg.initDataUnsafe?.user?.id || null;
+  <section id="screen-cart" class="hidden">
+    <h2>Корзина</h2>
+    <div id="cartBox"></div>
+    <div class="row">
+      <button class="btn" id="toCheckout">Оформить заказ</button>
+    </div>
+  </section>
 
-    log(`[${new Date().toLocaleTimeString()}] SDK готов. Платформа: ${tg.platform}.`);
-    log(`query_id: ${queryId || "—"}`);
-    if (!userId) log("ℹ️ userId не получен (OK для некоторых клиентов).");
+  <section id="screen-checkout" class="hidden">
+    <h2>Оформление</h2>
+    <textarea id="addr" placeholder="Адрес доставки или комментарий"></textarea>
+    <select id="delivery"><option value="pickup">Самовывоз</option><option value="courier">Курьер</option></select>
+    <button class="btn" id="makeOrder">Создать заказ</button>
+  </section>
 
-    btn.addEventListener("click", async () => {
-      const payload = { event: "hello_from_miniapp", ts: Date.now() };
+  <section id="screen-orders" class="hidden">
+    <h2>Мои заказы</h2>
+    <div id="ordersBox"></div>
+  </section>
+</main>
+<footer class="row">
+  <button class="btn" id="navShop">Каталог</button>
+  <button class="btn" id="navCart">Корзина</button>
+  <button class="btn" id="navOrders">История</button>
+</footer>
 
-      try {
-        if (queryId) {
-          // Открыто через inline‑кнопку
-          const r = await fetch("/api/inline_answer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query_id: queryId, data: payload })
-          });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j?.description || JSON.stringify(j));
-          log("✅ Ответили в чат через answerWebAppQuery.");
-        } else if (tg.sendData) {
-          // Открыто через reply‑клавиатуру
-          tg.sendData(JSON.stringify(payload));
-          log("✅ Отправлено боту через sendData (reply‑кнопка).");
-        } else if (userId) {
-          // Открыто из профиля бота («Открыть»)
-          const r = await fetch("/api/send_message", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: userId, text: "📦 " + JSON.stringify(payload) })
-          });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j?.description || JSON.stringify(j));
-          log("✅ Сообщение отправлено в чат через sendMessage (меню «Открыть»).");
-        } else {
-          log("❗ Не удалось определить способ доставки (нет query_id и userId).");
-        }
-      } catch (e) {
-        log("❌ Ошибка: " + (e?.message || e));
-      }
-    });
-  </script>
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+const state = { stack: [], me: null, products: [] };
+const titleEl = document.getElementById("title");
+const screens = ["register","list","product","cart","checkout","orders"];
+const show = (name) => {
+  screens.forEach(s => document.getElementById("screen-"+s).classList.add("hidden"));
+  document.getElementById("screen-"+name).classList.remove("hidden");
+  titleEl.textContent = {
+    register:"Регистрация", list:"Каталог", product:"Товар",
+    cart:"Корзина", checkout:"Оформление", orders:"История"
+  }[name] || "Магазин";
+  state.stack.push(name);
+};
+document.getElementById("backBtn").onclick = () => {
+  state.stack.pop(); // current
+  const prev = state.stack.pop() || "list";
+  show(prev);
+};
+const api = (p, opt={}) => fetch(p, { headers:{'Content-Type':'application/json'}, ...opt}).then(r=>r.json());
+
+const uid = tg.initDataUnsafe?.user?.id || null;
+if (!uid) { alert("Нет user.id от Telegram"); }
+const queryId = tg.initDataUnsafe?.query_id || "";
+
+// bootstrap
+(async function init(){
+  // decide first screen
+  await api("/api/products").then(ps => state.products = ps);
+  // registration screen always first (лайт-профиль в БД)
+  show("register");
+})();
+
+// register
+document.getElementById("regBtn").onclick = async () => {
+  const payload = {
+    tg_user_id: uid,
+    full_name: v("full_name"), phone: v("phone"), email: v("email"),
+    referral_code: v("ref"), agreed: q("#agree").checked, policy_version: "v1"
+  };
+  const r = await api("/api/register",{method:"POST", body: JSON.stringify(payload)});
+  if (!r.ok) { return alert("Ошибка регистрации"); }
+  // after register go to list
+  renderList(); show("list");
+  // send message to chat that user registered (best-effort)
+  const data = { event:"registered", uid, ts:Date.now() };
+  if (queryId) {
+    await api("/api/inline_answer",{method:"POST", body: JSON.stringify({query_id: queryId, data})});
+  } else if (tg.sendData) {
+    tg.sendData(JSON.stringify(data));
+  } else {
+    await api("/api/send_message",{method:"POST", body: JSON.stringify({chat_id: uid, text: "👋 Регистрация выполнена"})});
+  }
+};
+
+function v(id){ return document.getElementById(id).value.trim(); }
+function q(sel){ return document.querySelector(sel); }
+
+function renderList(){
+  const box = document.getElementById("list"); box.innerHTML = "";
+  state.products.forEach(p=>{
+    const el = document.createElement("div"); el.className="card";
+    el.innerHTML = `
+      ${p.images?.[0] ? `<img src="${p.images[0]}" alt="">`:""}
+      <div class="row"><div><b>${p.title}</b></div><div class="price">${fmt(p.price_cents)}</div></div>
+      <p class="muted">${p.description||""}</p>
+      <div class="row">
+        <button class="btn" data-id="${p.id}">Открыть</button>
+        <button class="btn add" data-id="${p.id}">В корзину</button>
+      </div>`;
+    el.querySelector("[data-id]").onclick = ()=>openProduct(p.id);
+    el.querySelector(".add").onclick = ()=>addToCart(p.id,1);
+    box.appendChild(el);
+  });
+}
+
+async function openProduct(id){
+  const p = await api("/api/products/"+id);
+  const box = document.getElementById("pbox");
+  box.innerHTML = `
+    ${p.images?.[0]? `<img src="${p.images[0]}">`:""}
+    <h2>${p.title}</h2>
+    <div class="price">${fmt(p.price_cents)}</div>
+    <p>${p.description||""}</p>
+    <div class="row">
+      <button class="btn" id="pAdd">В корзину</button>
+    </div>`;
+  document.getElementById("pAdd").onclick = ()=>addToCart(p.id,1);
+  show("product");
+}
+
+async function addToCart(product_id, qty){
+  await api(`/api/cart/${uid}/items`, {method:"POST", body: JSON.stringify({product_id, qty})});
+  await renderCart();
+}
+
+async function renderCart(){
+  const c = await api(`/api/cart/${uid}`);
+  const box = document.getElementById("cartBox"); box.innerHTML = "";
+  if (!c.items?.length){ box.textContent = "Корзина пуста"; return; }
+  c.items.forEach(it=>{
+    const el = document.createElement("div"); el.className="card";
+    el.innerHTML = `
+      <div class="row"><b>${it.title}</b><span class="price">${fmt(it.price_cents)}</span></div>
+      <div class="row">
+        <input type="number" min="1" value="${it.qty}" style="width:90px" />
+        <button class="btn save">Сохранить</button>
+        <button class="btn del">Удалить</button>
+      </div>`;
+    el.querySelector(".save").onclick = async ()=> {
+      const qty = parseInt(el.querySelector("input").value||"1",10);
+      await api(`/api/cart/items/${it.id}`, {method:"PATCH", body: JSON.stringify({product_id: it.product_id, qty})});
+      await renderCart();
+    };
+    el.querySelector(".del").onclick = async ()=> {
+      await api(`/api/cart/items/${it.id}`, {method:"DELETE"});
+      await renderCart();
+    };
+    box.appendChild(el);
+  });
+  const total = document.createElement("p"); total.innerHTML = `<b>Итого: ${fmt(c.total_cents)}</b>`;
+  box.appendChild(total);
+}
+
+document.getElementById("toCheckout").onclick = ()=> show("checkout");
+document.getElementById("makeOrder").onclick = async ()=>{
+  const r = await api("/api/orders",{method:"POST", body: JSON.stringify({
+    tg_user_id: uid, address: q("#addr").value.trim(), delivery_method: q("#delivery").value
+  })});
+  if (!r.ok){ return alert("Ошибка заказа"); }
+  alert("Заказ создан: " + r.order_number);
+  await renderOrders();
+  show("orders");
+};
+
+async function renderOrders(){
+  const list = await api(`/api/orders/${uid}`);
+  const box = document.getElementById("ordersBox"); box.innerHTML = "";
+  if (!list.length){ box.textContent = "Заказов пока нет"; return; }
+  list.forEach(o=>{
+    const el = document.createElement("div"); el.className="card";
+    el.innerHTML = `<b>№ ${o.number}</b> · Статус: ${o.status} · Итого: ${fmt(o.total_cents)}<br>
+    <div class="muted">Позиции:</div>
+    <ul>${o.items.map(i=>`<li>${i.title} × ${i.qty} — ${fmt(i.price_cents)}</li>`).join("")}</ul>`;
+    box.appendChild(el);
+  });
+}
+
+function fmt(c){ return (c/100).toFixed(2) + " ₽"; }
+
+// navbar
+document.getElementById("navShop").onclick = ()=>{ renderList(); show("list"); };
+document.getElementById("navCart").onclick = async ()=>{ await renderCart(); show("cart"); };
+document.getElementById("navOrders").onclick = async ()=>{ await renderOrders(); show("orders"); };
+
+</script>
 </body>
 </html>
